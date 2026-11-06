@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "HotelConfig": {
+      "title": "HotelConfig",
+      "description": "Configuración general del hotel",
+      "type": "object",
+      "properties": {
+        "hotelId": { "type": "string" },
+        "hotelName": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "nit": { "type": "string" }
+      }
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Habitación del hotel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "bedCount": { "type": "integer" }
+      }
+    },
+    "Stay": {
+      "title": "Stay",
+      "description": "Estadía activa o pasada en una habitación",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "status": { "type": "string" },
+        "checkInEpoch": { "type": "integer" },
+        "scheduledCheckOutEpoch": { "type": "integer" }
+      }
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Reservación programada de habitación",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "status": { "type": "string" },
+        "arrivalTimeEpoch": { "type": "integer" },
+        "durationMinutes": { "type": "integer" }
+      }
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Factura generada por estadía y servicios",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "total": { "type": "number" },
+        "createdEpoch": { "type": "integer" }
+      }
+    },
+    "Device": {
+      "title": "Device",
+      "description": "Dispositivo autorizado para operar el hotel",
+      "type": "object",
+      "properties": {
+        "deviceId": { "type": "string" },
+        "deviceName": { "type": "string" },
+        "isAuthorized": { "type": "boolean" },
+        "status": { "type": "string" }
+      }
+    },
+    "LinkCode": {
+      "title": "LinkCode",
+      "description": "Código temporal para vincular nuevos dispositivos",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "expiresAtEpoch": { "type": "integer" },
+        "isUsed": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/hotels/{hotelId}/config/{configId}": {
+      "schema": { "$ref": "#/entities/HotelConfig" },
+      "description": "Configuración del hotel"
+    },
+    "/hotels/{hotelId}/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Catálogo y estado de habitaciones"
+    },
+    "/hotels/{hotelId}/stays/{stayId}": {
+      "schema": { "$ref": "#/entities/Stay" },
+      "description": "Registro de estadías"
+    },
+    "/hotels/{hotelId}/reservations/{reservationId}": {
+      "schema": { "$ref": "#/entities/Reservation" },
+      "description": "Reservaciones de habitaciones"
+    },
+    "/hotels/{hotelId}/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/Invoice" },
+      "description": "Facturación y cobros"
+    },
+    "/hotels/{hotelId}/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/Device" },
+      "description": "Dispositivos vinculados y autorizaciones"
+    },
+    "/hotels/{hotelId}/link_codes/{codeId}": {
+      "schema": { "$ref": "#/entities/LinkCode" },
+      "description": "Códigos de vinculación rápida"
+    }
+  }
+}

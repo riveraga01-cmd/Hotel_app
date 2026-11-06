@@ -1,0 +1,185 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches: [ "**" ]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [ "**" ]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publicar release formal con el APK adjunto'
+        required: false
+        type: boolean
+        default: false
+      tag_name:
+        description: 'Nombre de la versión (ej. v1.0.0)'
+        required: false
+        type: string
+        default: 'v1.0.0'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Compilar APK Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Descargar repositorio (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Configurar Java JDK 21 con Caching de Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Aceptar licencias del Android SDK con herramienta oficial (sdkmanager)
+        run: |
+          echo "Configurando licencias del Android SDK mediante sdkmanager oficial..."
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          elif command -v sdkmanager &> /dev/null; then
+            yes | sdkmanager --licenses || true
+          fi
+
+      - name: Asegurar plataforma Android SDK requerida por compileSdk
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -d "$ANDROID_HOME/platforms/android-36" ] && [ -x "$SDKMANAGER" ]; then
+            echo "Instalando plataforma Android 36 con sdkmanager..."
+            echo y | "$SDKMANAGER" --install "platforms;android-36" || true
+          fi
+
+      - name: Preparar variables de entorno y archivos base (.env)
+        run: |
+          touch .env
+          if [ ! -f .env.example ]; then
+            touch .env.example
+          fi
+          echo "Archivos .env y .env.example preparados para el plugin de secretos."
+
+      - name: Preparar Keystore de depuración (debugConfig)
+        run: |
+          if [ -f debug.keystore.base64 ] && [ ! -s debug.keystore ]; then
+            echo "Decodificando debug.keystore desde base64..."
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || true
+          fi
+          if [ ! -s debug.keystore ]; then
+            echo "Generando debug.keystore requerido para signingConfig debug..."
+            keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          ls -lh debug.keystore
+
+      - name: Verificar estructura del proyecto y permisos
+        run: |
+          echo "1. Comprobando existencia de gradlew..."
+          if [ ! -f "./gradlew" ]; then
+            echo "Error: gradlew no existe en la raíz del proyecto."
+            exit 1
+          fi
+
+          echo "2. Comprobando y asignando permisos de ejecución a gradlew..."
+          sed -i 's/\r$//' ./gradlew || true
+          chmod +x ./gradlew
+          if [ ! -x "./gradlew" ]; then
+            echo "Error: gradlew no tiene permisos de ejecución."
+            exit 1
+          fi
+
+          echo "3. Comprobando existencia del módulo 'app'..."
+          if [ ! -d "app" ] || [ ! -f "app/build.gradle.kts" ]; then
+            echo "Error: No se encontró la carpeta del módulo 'app' o su archivo build.gradle.kts."
+            exit 1
+          fi
+
+          echo "4. Comprobando inclusión del módulo ':app' en settings.gradle.kts..."
+          if ! grep -q 'include(":app")' settings.gradle.kts; then
+            echo "Error: El módulo ':app' no está incluido en settings.gradle.kts."
+            exit 1
+          fi
+
+          echo "Estructura del proyecto y permisos verificados exitosamente."
+
+      - name: Compilar APK con Gradle
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Generar y verificar APK en el módulo app
+        run: |
+          mkdir -p build/dist-apk
+          APK_ORIGEN="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK_ORIGEN" ]; then
+            echo "Buscando APK generado en subcarpetas de app/build/outputs/apk..."
+            APK_ORIGEN=$(find app/build/outputs/apk -type f -name "*.apk" | head -n 1)
+          fi
+
+          if [ -z "$APK_ORIGEN" ] || [ ! -f "$APK_ORIGEN" ]; then
+            echo "Error crítico: No se generó ningún archivo APK en el módulo app."
+            find app/build/outputs -maxdepth 4 2>/dev/null || true
+            exit 1
+          fi
+
+          if [ ! -s "$APK_ORIGEN" ]; then
+            echo "Error crítico: El archivo APK generado ($APK_ORIGEN) tiene un tamaño de 0 bytes."
+            exit 1
+          fi
+
+          TAMANIO=$(du -h "$APK_ORIGEN" | cut -f1)
+          echo "APK generado exitosamente en: $APK_ORIGEN (Tamaño: $TAMANIO)"
+
+          cp "$APK_ORIGEN" build/dist-apk/HotelRivera-v1.0.apk
+
+          if [ ! -s "build/dist-apk/HotelRivera-v1.0.apk" ]; then
+            echo "Error: Fallo al copiar el archivo a build/dist-apk/HotelRivera-v1.0.apk"
+            exit 1
+          fi
+
+          echo "APK listo y verificado para publicación:"
+          ls -lh build/dist-apk/HotelRivera-v1.0.apk
+
+      - name: Publicar Artefacto descargable en GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: HotelRivera-Android-APK
+          path: build/dist-apk/HotelRivera-v1.0.apk
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+      - name: Publicar APK en GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.create_release == 'true' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || 'v1.0.0' }}
+          name: "Hotel Rivera ${{ github.event.inputs.tag_name || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || 'v1.0.0' }}"
+          body: |
+            ### 📱 Hotel Rivera — Instalador de Aplicación Android (APK)
+
+            Versión oficial compilada y lista para su descarga directa en teléfonos celulares y tablets Android.
+
+            #### 📥 Descarga Directa:
+            - Pulsa sobre **`HotelRivera-v1.0.apk`** abajo en la sección **Assets**.
+            - La descarga del archivo `.apk` comenzará inmediatamente en tu navegador sin requerir inicio de sesión ni descomprimir archivos ZIP.
+
+            #### 📲 Pasos de Instalación:
+            1. Abre el archivo descargado en tu dispositivo Android.
+            2. Si aparece la alerta del sistema, selecciona **Ajustes** y activa **Instalar aplicaciones desconocidas**.
+            3. Pulsa **Instalar** y luego **Abrir**.
+            4. Inicia sesión con la cuenta de Google del hotel para acceder al sistema.
+          files: build/dist-apk/HotelRivera-v1.0.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

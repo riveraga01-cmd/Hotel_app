@@ -1,0 +1,6 @@
+{
+  "name": "Hotel Rivera",
+  "description": "Sistema de administración y control operativo para Hotel Rivera con sincronización multi-dispositivo en tiempo real, gestión de habitaciones, tarifas, facturación y control económico.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

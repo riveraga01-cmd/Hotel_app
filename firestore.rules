@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /hotels/{hotelId} {
+      allow read, write: if true;
+
+      match /config/{document=**} {
+        allow read, write: if true;
+      }
+
+      match /devices/{deviceId} {
+        allow read, write: if true;
+      }
+
+      match /rooms/{roomId} {
+        allow read, write: if true;
+      }
+
+      match /stays/{stayId} {
+        allow read, write: if true;
+      }
+
+      match /reservations/{reservationId} {
+        allow read, write: if true;
+      }
+
+      match /invoices/{invoiceId} {
+        allow read, write: if true;
+      }
+
+      match /link_codes/{codeId} {
+        allow read, write: if true;
+      }
+    }
+  }
+}
