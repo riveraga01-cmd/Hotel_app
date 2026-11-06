@@ -2,11 +2,13 @@ name: Build & Release Android APK
 
 on:
   push:
-    branches: [ "**" ]
+    branches:
+      - "**"
     tags:
       - "v*"
   pull_request:
-    branches: [ "**" ]
+    branches:
+      - "**"
   workflow_dispatch:
     inputs:
       create_release:
@@ -31,7 +33,6 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
-      packages: write
 
     steps:
       - name: Descargar repositorio (Checkout)
@@ -46,24 +47,13 @@ jobs:
 
       - name: Instalar SDK de Android, Herramientas y Licencias
         run: |
-          echo "Aceptando licencias del Android SDK..."
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          
-          echo "Instalando plataformas y herramientas de compilación compatibles..."
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "build-tools;34.0.0" \
-            "build-tools;35.0.0" \
-            "platforms;android-34" \
-            "platforms;android-35" \
-            "platforms;android-36" || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35" || true
 
       - name: Preparar variables de entorno y archivos base (.env)
         run: |
           touch .env
-          if [ ! -f .env.example ]; then
-            touch .env.example
-          fi
+          touch .env.example
 
       - name: Preparar Keystore de depuración (debugConfig)
         run: |
@@ -83,66 +73,23 @@ jobs:
           sed -i 's/\r$//' ./gradlew || true
           chmod +x ./gradlew
 
-      - name: Generar google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          elif [ ! -f "app/google-services.json" ]; then
-            echo 'Generando configuración de respaldo para google-services.json...'
-            cat << 'EOF' > app/google-services.json
-{
-  "project_info": {
-    "project_number": "727663905250",
-    "project_id": "gen-lang-client-0843890405",
-    "storage_bucket": "gen-lang-client-0843890405.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:727663905250:android:3767a84f35aa57c150d1bb",
-        "android_client_info": {
-          "package_name": "com.aistudio.hotelrivera.rvkpxz"
-        }
-      },
-      "oauth_client": [
-        {
-          "client_id": "727663905250-4s2ft1but35ep4bm9ndslhiq5bk9sdlc.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAZ67P-ShaJ8mAR2FRpTDLQfXgH3dgvJrk"
-        }
-      ]
-    }
-  ],
-  "configuration_version": "1"
-}
-EOF
-          fi
-          ls -lh app/google-services.json
+      - name: Crear google-services.json
+        run: printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
 
       - name: Compilar APK con Gradle
-        run: |
-          ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Generar y verificar APK en el módulo app
         run: |
           mkdir -p build/dist-apk
           APK_ORIGEN="app/build/outputs/apk/debug/app-debug.apk"
-
           if [ ! -f "$APK_ORIGEN" ]; then
             APK_ORIGEN=$(find app/build/outputs/apk -type f -name "*.apk" | head -n 1)
           fi
-
           if [ -z "$APK_ORIGEN" ] || [ ! -f "$APK_ORIGEN" ] || [ ! -s "$APK_ORIGEN" ]; then
             echo "Error crítico: No se generó ningún APK válido."
             exit 1
           fi
-
           cp "$APK_ORIGEN" build/dist-apk/HotelRivera-v1.0.apk
           ls -lh build/dist-apk/HotelRivera-v1.0.apk
 
