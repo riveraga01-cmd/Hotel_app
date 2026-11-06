@@ -56,7 +56,14 @@ fun SignInScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val defaultClientId = stringResource(id = R.string.default_web_client_id)
+    val defaultClientId = remember(context) {
+        val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        if (resId != 0) {
+            context.getString(resId)
+        } else {
+            "727663905250-4s2ft1but35ep4bm9ndslhiq5bk9sdlc.apps.googleusercontent.com"
+        }
+    }
 
     Box(
         modifier = modifier
