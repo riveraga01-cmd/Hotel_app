@@ -74,7 +74,84 @@ jobs:
           chmod +x ./gradlew
 
       - name: Crear google-services.json
-        run: printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_RAW: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          cat << 'EOF' > app/google-services.json
+          ${{ secrets.GOOGLE_SERVICES_JSON }}
+          EOF
+
+          # Si por formato de GitHub Actions quedó vacío pero la variable env existe, usarla
+          if [ ! -s app/google-services.json ] && [ -n "$GOOGLE_SERVICES_JSON_RAW" ]; then
+            printf '%s\n' "$GOOGLE_SERVICES_JSON_RAW" > app/google-services.json
+          fi
+
+          # Si el contenido vino codificado en Base64, decodificarlo a JSON plano
+          if [ -s app/google-services.json ] && ! grep -q "^{" app/google-services.json 2>/dev/null; then
+            base64 -d app/google-services.json > app/google-services.tmp.json 2>/dev/null || base64 --decode app/google-services.json > app/google-services.tmp.json 2>/dev/null || true
+            if grep -q "^{" app/google-services.tmp.json 2>/dev/null; then
+              mv app/google-services.tmp.json app/google-services.json
+            fi
+            rm -f app/google-services.tmp.json
+          fi
+
+          # Validar que el archivo no esté vacío y contenga 'project_info'. Si falta o está corrupto, usar la configuración base
+          if [ ! -s app/google-services.json ] || ! grep -q "project_info" app/google-services.json 2>/dev/null; then
+            echo "Aviso: Secret no configurado o malformado. Inyectando configuración base de Hotel Rivera..."
+            cat << 'EOF_BACKUP' > app/google-services.json
+{
+  "project_info": {
+    "project_number": "727663905250",
+    "project_id": "gen-lang-client-0843890405",
+    "storage_bucket": "gen-lang-client-0843890405.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:727663905250:android:3767a84f35aa57c150d1bb",
+        "android_client_info": {
+          "package_name": "com.aistudio.hotelrivera.rvkpxz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "727663905250-dekkvnar7i3kmc08tqbb3bdk59gda0ht.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.hotelrivera.rvkpxz",
+            "certificate_hash": "232b14e6a4373e79b58c8910136e64895714f45f"
+          }
+        },
+        {
+          "client_id": "727663905250-4s2ft1but35ep4bm9ndslhiq5bk9sdlc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZ67P-ShaJ8mAR2FRpTDLQfXgH3dgvJrk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "727663905250-4s2ft1but35ep4bm9ndslhiq5bk9sdlc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+EOF_BACKUP
+          fi
+
+          echo "Validación de app/google-services.json:"
+          ls -lh app/google-services.json
+          head -n 5 app/google-services.json
 
       - name: Compilar APK con Gradle
         run: ./gradlew :app:assembleDebug --no-daemon
